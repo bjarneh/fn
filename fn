@@ -1,0 +1,233 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#____________________________________________________________
+#
+#  Copyright 2016 bjarneh@ifi.uio.no. All rights reserved. 
+#  Use of this source code is governed by a BSD-style 
+#  license that can be found in the LICENSE file. 
+#
+#____________________________________________________________
+#
+"""
+ fn - small simple find utility
+
+ usage: fn - [OPTIONS] pattern
+
+ options:
+     -h --help    :  print this menu and exit
+     -v --version :  print version and exit
+     -d --dir     :  search dir (default: PWD)
+     -i --ignore  :  ignore case on match
+     -s --strip   :  dirs to strip (default '\..*')
+     -r --regex   :  treat pattern as regexp
+     -f --file    :  only match file (! full path)
+     -0 --null    :  terminate files with \\0
+     -g --grep    :  grep for pattern in matches
+     -a --ansi    :  highlight grep matches
+     -1 --stdout  :  write to stdout (!pager)
+"""
+
+import os
+import re
+import sys
+import pydoc
+import getopt
+
+
+__version__ = 1.0
+__license__ = 'GPLv3'
+__author__  = 'bjarneh@ifi.uio.no'
+
+
+# Minimal set of ANSI control sequences
+ansi = {
+    'FG_GREEN': '\033[92m',
+    'NORMAL'  : '\033[0m'
+}
+
+
+# Globals
+config = {
+    'dir'     : None,
+    'ignore'  : False,
+    'strip'   : '\..*',
+    'pattern' : None,
+    'regex'   : False,
+    'file'    : False,
+    'null'    : False,
+    'grep'    : None,
+    'ansi'    : False,
+    'stdout'  : False
+}
+
+
+def niceopt(argv, short_opts, long_opts):
+    """ Allow long options which start with a single '-' sign"""
+    for i, e in enumerate(argv):
+        for opt in long_opts:
+            if( e.startswith("-" + opt) or
+              ( e.startswith("-" + opt[:-1]) and opt[-1] == "=") ):
+                argv[i] = "-" + e
+    return getopt.gnu_getopt(argv, short_opts, long_opts)
+
+
+
+def path_walk(dir_name,criteria,exclude,file_match=False,ignore_case=False):
+    """
+    Traverse 'dir_name', collected files matching 'criteria'
+    (regex|string) and ignore directories matching exclude (regex)
+    if exclude is not None. If 'file_match' is true then we
+    only match against file names, not complete paths.
+    """
+
+    collected  = []
+    regexclude = None
+    ok_regexp  = None
+    ok_string  = None
+    
+    # No criteria spits out all files
+    if criteria:
+        if type(criteria) == type('somestring'):
+            if ignore_case:
+                ok_string = criteria.lower()
+            else:
+                ok_string = criteria
+        else: # assume regex :-)
+            ok_regexp = criteria
+
+    if exclude: # We ignore dot dirs by default (.hg/.git … )
+        if ignore_case:
+            regexclude = re.compile(exclude, re.I)
+        else:
+            regexclude = re.compile(exclude)
+
+    for root, dirs, files in os.walk(dir_name):
+        if dirs and regexclude:
+            ignore_dirs = filter( lambda x: regexclude.match(x), dirs )
+            for ign in ignore_dirs:
+                dirs.remove( ign )
+        if files:
+            for f in files:
+                if not file_match and not criteria:
+                    collected.append(os.path.join(root, f))
+                elif ok_regexp and ok_regexp.match(f):
+                    collected.append(os.path.join(root, f))
+                elif ok_string:
+                    if ignore_case:
+                        if f.lower().find(ok_string) > -1:
+                            collected.append(os.path.join(root, f))
+                    else:
+                        if f.find(ok_string) > -1:
+                            collected.append(os.path.join(root, f))
+
+    if not file_match and criteria:
+        tmp = []
+        for f in collected:
+            if ok_regexp and ok_regexp.search(f):
+                tmp.append(f)
+            elif ok_string and f.find(ok_string) > -1:
+                tmp.append(f)
+        return tmp
+    else:
+        return collected
+
+
+def grep_in_paths(regx, paths, use_stdout, use_ansi):
+    """ grep for pattern in files """
+    text = ''
+    for p in paths:
+        with open(p) as out:
+            for line in out:
+                m = regx.search( line )
+                if m:
+                    if use_ansi:
+                        start = m.start()
+                        stop  = m.end()
+                        tmp   = line[:start]
+                        tmp  += ansi['FG_GREEN']
+                        tmp  += line[start:stop]
+                        tmp  += ansi['NORMAL']
+                        tmp  += line[stop:]
+                        text += "%s: %s" % (p, tmp)
+                    else:
+                        text += "%s: %s" % (p, line)
+
+    if text:
+        if use_stdout:
+            sys.stdout.write(text)
+        else:
+            pydoc.pager(text)
+
+
+def main(argv=sys.argv):
+    """ Entry point, parse arguments and call the path_walk """
+
+    global config
+
+    try:
+
+        (opts, args) = niceopt(argv[1:], "hvis:d:rf0ag:1",
+                               ['help','version','regex','file','stdout',
+                                'ansi','ignore','null',
+                                'strip=','dir=','grep='])
+
+        for o, a in opts:
+            if o in ('-h', '--help'):
+                print( __doc__ ); raise SystemExit(0)
+            if o in ('-v', '--version'):
+                print( "%s - %s" % (os.path.basename(argv[0]), __version__));
+                raise SystemExit(0)
+            if o in ('-s', '--strip'):  config['strip']  = a
+            if o in ('-i', '--ignore'): config['ignore'] = not config['ignore']
+            if o in ('-d', '--dir'):    config['dir']    = a
+            if o in ('-r', '--regex'):  config['regex']  = not config['regex']
+            if o in ('-f', '--file'):   config['file']   = not config['file']
+            if o in ('-0', '--null'):   config['null']   = not config['null']
+            if o in ('-a', '--ansi'):   config['ansi']   = not config['ansi']
+            if o in ('-g', '--grep'):   config['grep']   = re.compile(a)
+            if o in ('-1', '--stdout'): config['stdout'] = True
+
+        # Allow missing pattern (find any file)
+        if args: config['pattern'] = args[0]
+        # PWD is the default director to search from
+        if not config['dir']: config['dir'] = os.path.curdir
+
+        if config['pattern'] and config['regex']:
+            if config['ignore']:
+                config['pattern'] = re.compile(config['pattern'], re.I)
+            else:
+                config['pattern'] = re.compile(config['pattern'])
+
+        paths = path_walk(config['dir'],
+                          config['pattern'],
+                          config['strip'],
+                          config['file'],
+                          config['ignore'])
+
+        if paths:
+            if config['grep']:
+                grep_in_paths(config['grep'], paths,
+                              config['stdout'], config['ansi'])
+            else:
+                if config['null']:
+                    sys.stdout.write('\0'.join(paths))
+                else:
+                    if config['stdout']:
+                        print('\n'.join(paths))
+                    else:
+                        pydoc.pager('\n'.join(paths))
+
+
+        raise SystemExit( 0 )
+
+    except SystemExit, inst:
+        if inst.code != 0: raise inst
+    except KeyboardInterrupt, inst:
+        pass
+    except Exception, inst:
+        raise SystemExit( "[ERROR] %s" % inst )
+
+
+
+if __name__ == '__main__':
+    sys.exit( main() )
