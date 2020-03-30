@@ -35,7 +35,7 @@ import getopt
 
 
 __version__ = 1.0
-__license__ = 'GPLv3'
+__license__ = 'BSDv2.0'
 __author__  = 'bjarneh@ifi.uio.no'
 
 
