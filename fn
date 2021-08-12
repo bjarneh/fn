@@ -25,6 +25,7 @@
      -g --grep    :  grep for pattern in matches
      -a --ansi    :  highlight grep matches
      -1 --stdout  :  write to stdout (!pager)
+     -x --remove  :  remove all files found
 """
 
 import os
@@ -55,6 +56,7 @@ config = {
     'regex'   : False,
     'file'    : False,
     'null'    : False,
+    'remove'  : False,
     'grep'    : None,
     'ansi'    : False,
     'stdout'  : False
@@ -159,6 +161,13 @@ def grep_in_paths(regx, paths, use_stdout, use_ansi):
             pydoc.pager(text)
 
 
+def remove_files(paths):
+    """ remove all paths given """
+    for p in paths:
+        print("rm {}".format(p))
+        os.remove(p)
+
+
 def main(argv=sys.argv):
     """ Entry point, parse arguments and call the path_walk """
 
@@ -166,8 +175,9 @@ def main(argv=sys.argv):
 
     try:
 
-        (opts, args) = niceopt(argv[1:], "hvis:d:rf0ag:1",
-                               ['help','version','regex','file','stdout',
+        (opts, args) = niceopt(argv[1:], "hxvis:d:rf0ag:1",
+                               ['help','remove','version',
+                                'regex','file','stdout',
                                 'ansi','ignore','null',
                                 'strip=','dir=','grep='])
 
@@ -186,6 +196,7 @@ def main(argv=sys.argv):
             if o in ('-a', '--ansi'):   config['ansi']   = not config['ansi']
             if o in ('-g', '--grep'):   config['grep']   = re.compile(a)
             if o in ('-1', '--stdout'): config['stdout'] = True
+            if o in ('-x', '--remove'): config['remove'] = True
 
         # Allow missing pattern (find any file)
         if args: config['pattern'] = args[0]
@@ -205,7 +216,9 @@ def main(argv=sys.argv):
                           config['ignore'])
 
         if paths:
-            if config['grep']:
+            if config['remove']:
+                remove_files(paths)
+            elif config['grep']:
                 grep_in_paths(config['grep'], paths,
                               config['stdout'], config['ansi'])
             else:
