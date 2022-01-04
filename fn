@@ -19,6 +19,7 @@
      -d --dir     :  search dir (default: PWD)
      -i --ignore  :  ignore case on match
      -s --strip   :  dirs to strip (default '\..*')
+     -e --endings :  file endings to ignore
      -r --regex   :  treat pattern as regexp
      -f --file    :  only match file (! full path)
      -0 --null    :  terminate files with \\0
@@ -52,6 +53,7 @@ config = {
     'dir'     : None,
     'ignore'  : False,
     'strip'   : '\..*',
+    'endings' : '''.+\\.(pyc|class|o)$''',
     'pattern' : None,
     'regex'   : False,
     'file'    : False,
@@ -74,7 +76,7 @@ def niceopt(argv, short_opts, long_opts):
 
 
 
-def path_walk(dir_name,criteria,exclude,file_match=False,ignore_case=False):
+def path_walk(dir_name, criteria, exclude, ends, file_match=False, ignore_case=False):
     """
     Traverse 'dir_name', collected files matching 'criteria'
     (regex|string) and ignore directories matching exclude (regex)
@@ -84,6 +86,7 @@ def path_walk(dir_name,criteria,exclude,file_match=False,ignore_case=False):
 
     collected  = []
     regexclude = None
+    endexclude = None
     ok_regexp  = None
     ok_string  = None
     
@@ -103,12 +106,20 @@ def path_walk(dir_name,criteria,exclude,file_match=False,ignore_case=False):
         else:
             regexclude = re.compile(exclude)
 
+    if ends:
+        if ignore_case:
+            endexclude = re.compile(ends, re.I)
+        else:
+            endexclude = re.compile(ends)
+
     for root, dirs, files in os.walk(dir_name):
         if dirs and regexclude:
             ignore_dirs = filter( lambda x: regexclude.match(x), dirs )
             for ign in ignore_dirs:
                 dirs.remove( ign )
         if files:
+            if ends:
+                files = filter( lambda x: not endexclude.match(x), files )
             for f in files:
                 if not file_match and not criteria:
                     collected.append(os.path.join(root, f))
@@ -175,11 +186,11 @@ def main(argv=sys.argv):
 
     try:
 
-        (opts, args) = niceopt(argv[1:], "hxvis:d:rf0ag:1",
+        (opts, args) = niceopt(argv[1:], "hxvis:e:d:rf0ag:1",
                                ['help','remove','version',
                                 'regex','file','stdout',
                                 'ansi','ignore','null',
-                                'strip=','dir=','grep='])
+                                'strip=','endings=','dir=','grep='])
 
         for o, a in opts:
             if o in ('-h', '--help'):
@@ -187,16 +198,17 @@ def main(argv=sys.argv):
             if o in ('-v', '--version'):
                 print( "%s - %s" % (os.path.basename(argv[0]), __version__));
                 raise SystemExit(0)
-            if o in ('-s', '--strip'):  config['strip']  = a
-            if o in ('-i', '--ignore'): config['ignore'] = not config['ignore']
-            if o in ('-d', '--dir'):    config['dir']    = a
-            if o in ('-r', '--regex'):  config['regex']  = not config['regex']
-            if o in ('-f', '--file'):   config['file']   = not config['file']
-            if o in ('-0', '--null'):   config['null']   = not config['null']
-            if o in ('-a', '--ansi'):   config['ansi']   = not config['ansi']
-            if o in ('-g', '--grep'):   config['grep']   = re.compile(a)
-            if o in ('-1', '--stdout'): config['stdout'] = True
-            if o in ('-x', '--remove'): config['remove'] = True
+            if o in ('-s', '--strip'):   config['strip']   = a
+            if o in ('-e', '--endings'): config['endings'] = a
+            if o in ('-i', '--ignore'):  config['ignore']  = not config['ignore']
+            if o in ('-d', '--dir'):     config['dir']     = a
+            if o in ('-r', '--regex'):   config['regex']   = not config['regex']
+            if o in ('-f', '--file'):    config['file']    = not config['file']
+            if o in ('-0', '--null'):    config['null']    = not config['null']
+            if o in ('-a', '--ansi'):    config['ansi']    = not config['ansi']
+            if o in ('-g', '--grep'):    config['grep']    = re.compile(a)
+            if o in ('-1', '--stdout'):  config['stdout']  = True
+            if o in ('-x', '--remove'):  config['remove']  = True
 
         # Allow missing pattern (find any file)
         if args: config['pattern'] = args[0]
@@ -212,6 +224,7 @@ def main(argv=sys.argv):
         paths = path_walk(config['dir'],
                           config['pattern'],
                           config['strip'],
+                          config['endings'],
                           config['file'],
                           config['ignore'])
 
