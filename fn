@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #____________________________________________________________
 #
@@ -246,11 +246,11 @@ def main(argv=sys.argv):
 
         raise SystemExit( 0 )
 
-    except SystemExit, inst:
+    except SystemExit as inst:
         if inst.code != 0: raise inst
-    except KeyboardInterrupt, inst:
+    except KeyboardInterrupt as inst:
         pass
-    except Exception, inst:
+    except Exception as inst:
         raise SystemExit( "[ERROR] %s" % inst )
 
 
