@@ -8,7 +8,7 @@
 #
 #____________________________________________________________
 #
-"""
+r"""
  fn - small simple find utility
 
  usage: fn - [OPTIONS] pattern
@@ -34,6 +34,7 @@ import re
 import sys
 import pydoc
 import getopt
+import traceback
 
 
 __version__ = 1.0
@@ -52,8 +53,8 @@ ansi = {
 config = {
     'dir'     : None,
     'ignore'  : False,
-    'strip'   : '\..*',
-    'endings' : '''.+\\.(pyc|class|o)$''',
+    'strip'   : r'''\..*''',
+    'endings' : r'''.+\.(pyc|class|o)$''',
     'pattern' : None,
     'regex'   : False,
     'file'    : False,
@@ -149,6 +150,7 @@ def grep_in_paths(regx, paths, use_stdout, use_ansi):
     """ grep for pattern in files """
     text = ''
     for p in paths:
+        print(p)
         with open(p) as out:
             for line in out:
                 m = regx.search( line )
@@ -251,6 +253,7 @@ def main(argv=sys.argv):
     except KeyboardInterrupt as inst:
         pass
     except Exception as inst:
+        traceback.print_exc()
         raise SystemExit( "[ERROR] %s" % inst )
 
 
