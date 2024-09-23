@@ -150,7 +150,6 @@ def grep_in_paths(regx, paths, use_stdout, use_ansi):
     """ grep for pattern in files """
     text = ''
     for p in paths:
-        print(p)
         with open(p) as out:
             for line in out:
                 m = regx.search( line )
